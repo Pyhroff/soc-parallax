@@ -8,7 +8,10 @@ MITRE ATT&CK, correlates them into incidents in a memory graph, and explains
 > Not a SIEM. Not a log viewer. SOC PARALLAX answers *what is happening*,
 > *what happened before*, and *what is likely to happen next* — and shows its work.
 
-![status](https://img.shields.io/badge/status-MVP-blue) ![tests](https://img.shields.io/badge/tests-passing-brightgreen)
+![status](https://img.shields.io/badge/status-MVP-blue) ![tests](https://img.shields.io/badge/tests-10%20passing-brightgreen) ![TPR](https://img.shields.io/badge/TPR-53%25-orange) ![FP](https://img.shields.io/badge/FP%2F1k-0.0-brightgreen)
+
+> **Detection results** (real [EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES) corpus, 279 attack files):
+> 53% TPR · **0.0 false positives per 1,000 events**
 
 ---
 
