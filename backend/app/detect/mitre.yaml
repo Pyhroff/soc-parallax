@@ -1,0 +1,39 @@
+# Signal -> MITRE ATT&CK mapping.
+# Rule-based ON PURPOSE: LLMs hallucinate technique IDs. This file is the
+# single source of truth and is unit-tested. Versioned, reviewable, defensible.
+
+# Catalog of techniques referenced below (id -> tactic, name)
+techniques:
+  T1059.001: { tactic: Execution,            name: "PowerShell" }
+  T1059.003: { tactic: Execution,            name: "Windows Command Shell" }
+  T1027:     { tactic: "Defense Evasion",    name: "Obfuscated Files or Information" }
+  T1036:     { tactic: "Defense Evasion",    name: "Masquerading" }
+  T1055:     { tactic: "Defense Evasion",    name: "Process Injection" }
+  T1078:     { tactic: "Initial Access",     name: "Valid Accounts" }
+  T1566:     { tactic: "Initial Access",     name: "Phishing" }
+  T1071:     { tactic: "Command and Control", name: "Application Layer Protocol" }
+  T1071.004: { tactic: "Command and Control", name: "DNS" }
+  T1105:     { tactic: "Command and Control", name: "Ingress Tool Transfer" }
+  T1218:     { tactic: "Defense Evasion",    name: "System Binary Proxy Execution (LOLBin)" }
+  T1053:     { tactic: Execution,            name: "Scheduled Task/Job" }
+  T1003:     { tactic: "Credential Access",  name: "OS Credential Dumping" }
+  T1547:     { tactic: Persistence,          name: "Boot or Logon Autostart Execution" }
+  T1021:     { tactic: "Lateral Movement",   name: "Remote Services" }
+
+# signal name -> list of technique ids
+signal_map:
+  "rule:encoded_powershell":   [T1059.001, T1027]
+  "rule:office_spawn_shell":   [T1566, T1059.001]
+  "rule:lolbin_execution":     [T1218]
+  "rule:suspicious_parent":    [T1055, T1036]
+  "rule:cmd_download":         [T1105]
+  "rule:credential_tool":      [T1003]
+  "rule:autostart_registry":   [T1547]
+  "rule:scheduled_task":       [T1053]
+  "rule:remote_exec":          [T1021]
+  "rarity:process_name":       [T1059.001]
+  "rarity:parent_child":       [T1055]
+  "rarity:login_hour":         [T1078]
+  "rarity:src_ip":             [T1078]
+  "rarity:dest_ip":            [T1071]
+  "rarity:domain":             [T1071.004]

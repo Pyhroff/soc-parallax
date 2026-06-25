@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { background: #0a0e14; color: #e6edf3; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #222c3c; border-radius: 4px; }
+
+.card { @apply bg-panel border border-edge rounded-lg; }
+.btn { @apply bg-panel2 border border-edge rounded px-3 py-1.5 text-sm hover:border-accent transition; }
+.pill { @apply text-xs px-2 py-0.5 rounded-full font-medium; }

