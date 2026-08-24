@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from app.db import neo4j
 from app.schemas.detection import Detection
-from app.schemas.event import EventType, UnifiedEvent
+from app.schemas.event import UnifiedEvent
 
 
 def write_event(ev: UnifiedEvent) -> None:

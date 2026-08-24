@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.narrate import grounding
-from app.narrate.llm import EchoProvider, get_provider
+from app.narrate.llm import get_provider
 from app.schemas.detection import Detection
 
 SYSTEM_PROMPT = (
