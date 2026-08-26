@@ -69,7 +69,8 @@ def evaluate(ev: UnifiedEvent) -> list[RuleHit]:
             hits.append(RuleHit("rule:scheduled_task", 0.6,
                                 "Scheduled task creation (possible persistence)"))
         # Remote execution tooling
-        if proc in {"psexec.exe", "psexesvc.exe", "wmic.exe"} and "process call create" in cmd.lower():
+        if proc in {"psexec.exe", "psexesvc.exe", "wmic.exe"} \
+                and "process call create" in cmd.lower():
             hits.append(RuleHit("rule:remote_exec", 0.7,
                                 "Remote process execution (possible lateral movement)"))
 

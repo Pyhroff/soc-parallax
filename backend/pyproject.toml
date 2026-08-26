@@ -21,13 +21,22 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.3",
+    "ruff==0.15.18",
     "mypy>=1.9",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Explicit selection, not ruff's shifting defaults. ruff>=0.3 (unbounded)
+# + no explicit select is exactly what broke this CI twice in one week —
+# once with 2 F401s, once with 31 different errors from a newer ruff
+# resolving different default-enabled rules, no code change either time.
+# Pinning the version AND selecting rules explicitly closes both halves of
+# that failure mode, not just one.
+select = ["E", "F"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

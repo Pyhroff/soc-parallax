@@ -55,7 +55,8 @@ def extract(ev: UnifiedEvent) -> list[Observation]:
             )
         if ev.network.dest_port is not None:
             obs.append(
-                Observation("process", ev.process.name.lower(), "dest_port", str(ev.network.dest_port))
+                Observation("process", ev.process.name.lower(),
+                           "dest_port", str(ev.network.dest_port))
             )
 
     return obs

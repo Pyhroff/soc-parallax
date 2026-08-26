@@ -59,8 +59,8 @@ def _dig(record: dict, path: str):
 def _resolve(record: dict, field: str):
     for key in ALIASES.get(field, []):
         val = record.get(key) if key in record else _dig(record, key)
-        if isinstance(val, dict):   # nested object (e.g. ECS "host":{...}); try dotted alias instead
-            continue
+        if isinstance(val, dict):
+            continue  # nested object (e.g. ECS "host":{...}); try dotted alias instead
         if val not in (None, ""):
             return val
     return None
@@ -95,8 +95,9 @@ def event_from_record(record: dict) -> UnifiedEvent:
             result="success",
             src_ip=_resolve(record, "src_ip"),
         )
+    ts_raw = _resolve(record, "timestamp")
     return UnifiedEvent(
-        timestamp=_parse_time(str(_resolve(record, "timestamp")) if _resolve(record, "timestamp") else None),
+        timestamp=_parse_time(str(ts_raw) if ts_raw else None),
         source="json",
         event_type=etype,
         host=_resolve(record, "host"),

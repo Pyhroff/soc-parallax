@@ -54,7 +54,8 @@ def write_event(ev: UnifiedEvent) -> None:
         )
 
 
-def write_incident(incident_id: str, severity: str, det: Detection, technique_order: list[str]) -> None:
+def write_incident(incident_id: str, severity: str, det: Detection,
+                   technique_order: list[str]) -> None:
     neo4j.run(
         """MERGE (inc:Incident {id:$id})
            SET inc.severity=$sev, inc.created_at=datetime()""",

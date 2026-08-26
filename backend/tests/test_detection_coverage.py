@@ -181,9 +181,10 @@ def test_remote_exec_negative_control():
 # the synthetic record needs that exact nested shape to exercise it for real.
 
 def test_autostart_registry_detected():
+    run_key = r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run\Updater"
     ev = event_from_record({
         "event_type": "registry_set",
-        "EventData": {"TargetObject": r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run\Updater"},
+        "EventData": {"TargetObject": run_key},
     })
     fired = [h.name for h in rules.evaluate(ev)]
     assert "rule:autostart_registry" in fired
