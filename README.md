@@ -22,6 +22,37 @@ Most detection demos are black boxes: "the model flagged it." SOC PARALLAX is a
 MITRE mapping comes from a versioned rulebook (not an LLM guess), and every
 generated narrative passes an **anti-hallucination check** before it's shown.
 
+## Why this matters
+
+False-positive fatigue is the actual reason most SOC anomaly detectors fail in practice, not a lack of detection coverage. A model that flags everything mildly unusual generates thousands of alerts a day; analysts stop reading them, and the one real intrusion gets lost in the noise — this is a documented, widely-cited failure mode in real security operations, not a hypothetical. SOC PARALLAX's benchmark against the real, labeled [EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES) corpus (279 real attack telemetry files, not synthetic data) is 53% TPR at **0.0 false positives per 1,000 events** — and the reason that's trustworthy rather than a lucky number on one dataset is the architecture behind it: every risk score traces back to a named, weighted signal (`score = Σ(weight × signal)`), every MITRE ATT&CK mapping comes from a versioned YAML rulebook rather than an LLM's guess at a technique ID, and every generated narrative passes a grounding guard that blocks it from citing an IP or technique that isn't actually in the evidence. That's the actual bet this project makes: an analyst should be able to click into any single point of any score and see exactly which signal produced it — the opposite of "the model flagged it" with no further explanation, which is what most detection demos still ship.
+
+## Demo
+
+<!--
+  TODO(Blessing): replace this line with the recorded GIF, e.g.:
+  ![SOC PARALLAX dashboard](docs/demo.gif)
+
+  How to record it (5-10 minutes, needs Docker running):
+  1. `docker compose up --build` (first run pulls images, takes a few minutes)
+  2. `docker exec parallax-ollama ollama pull llama3` (first run only)
+  3. `python scripts/generate_demo_data.py` to get sample data to show
+  4. Run the ingest pipeline (see Quickstart step 4 above) so the dashboard
+     has real incidents/detections to display, not an empty state
+  5. Open http://localhost:3000 in a browser window sized to ~1200x700
+  6. Record with a free screen-to-GIF tool:
+       - Windows: ScreenToGif (screentogif.com)
+       - Or record .mp4 (OBS / Xbox Game Bar) and convert:
+         ffmpeg -i demo.mp4 -vf "fps=10,scale=1200:-1" -loop 0 docs/demo.gif
+  7. Good things to capture in order: the Overview page with real numbers,
+     clicking into one Incident to show the MITRE mapping + narrative +
+     "why" trace, then the Graph view. 10-20 seconds total is plenty.
+  8. Keep the file under ~8-10MB; `gifsicle -O3` helps if it's too big.
+  9. Save to docs/demo.gif and replace this comment block with the
+     ![...](docs/demo.gif) line above.
+-->
+
+*(GIF coming soon — see the Quickstart above to run it yourself in the meantime.)*
+
 ## What's built (the vertical slice)
 
 | Module | Status | What it does |
