@@ -125,7 +125,7 @@ python scripts/metrics.py \
   --attack data/external/evtx \
   --min-severity high
 # -> prints TPR, false positives / 1k events, per-technique breakdown,
-#    and a copy-paste resume line.
+#    and a summary line for reporting.
 ```
 
 ## Project layout
