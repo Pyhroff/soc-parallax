@@ -1,12 +1,12 @@
 # SOC PARALLAX
 
-**Cyber Behavioral Intelligence Platform** — learns per-entity behavioral
+**Cyber Behavioral Intelligence Platform** - learns per-entity behavioral
 baselines, scores anomalies with a fully *attributable* risk score, maps them to
 MITRE ATT&CK, correlates them into incidents in a memory graph, and explains
 *why* something is suspicious in grounded, analyst-grade language.
 
 > Not a SIEM. Not a log viewer. SOC PARALLAX answers *what is happening*,
-> *what happened before*, and *what is likely to happen next* — and shows its work.
+> *what happened before*, and *what is likely to happen next* - and shows its work.
 
 [![tests](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml/badge.svg)](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml) ![TPR](https://img.shields.io/badge/TPR-53%25-orange) ![FP](https://img.shields.io/badge/FP%2F1k-0.0-brightgreen) ![stack](https://img.shields.io/badge/stack-FastAPI%20%7C%20Neo4j%20%7C%20Next.js-blue)
 
@@ -18,7 +18,7 @@ MITRE ATT&CK, correlates them into incidents in a memory graph, and explains
 ## Why this exists
 
 Most detection demos are black boxes: "the model flagged it." SOC PARALLAX is a
-**glass box** — every point of a risk score traces to a named signal, every
+**glass box** - every point of a risk score traces to a named signal, every
 MITRE mapping comes from a versioned rulebook (not an LLM guess), and every
 generated narrative passes an **anti-hallucination check** before it's shown.
 
@@ -140,10 +140,10 @@ data/       sample datasets (provenance in data/README.md)
 
 ## Design decisions worth defending
 
-- **Rule-based MITRE mapping**, not LLM — LLMs hallucinate technique IDs.
-- **Attributable scoring** — `score = Σ(weight × signal)`, every point traceable.
-- **Grounding guard** — narratives may only cite IPs/techniques in the evidence.
-- **Local LLM** — SOC telemetry shouldn't leave the org; Ollama keeps it on-prem.
-- **Deterministic agent** — a fixed LangGraph, not a free-roaming one, so output is reproducible.
+- **Rule-based MITRE mapping**, not LLM - LLMs hallucinate technique IDs.
+- **Attributable scoring** - `score = Σ(weight × signal)`, every point traceable.
+- **Grounding guard** - narratives may only cite IPs/techniques in the evidence.
+- **Local LLM** - SOC telemetry shouldn't leave the org; Ollama keeps it on-prem.
+- **Deterministic agent** - a fixed LangGraph, not a free-roaming one, so output is reproducible.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §12 for the full list.
