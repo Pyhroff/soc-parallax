@@ -23,6 +23,12 @@ class EventType(str, Enum):
     logon = "logon"
     privilege_use = "privilege_use"
     account_created = "account_created"
+    process_access = "process_access"
+    script_block = "script_block"
+    scheduled_task = "scheduled_task"
+    service_install = "service_install"
+    object_access = "object_access"
+    log_cleared = "log_cleared"
     unknown = "unknown"
 
 

@@ -77,8 +77,88 @@ def is_encoded_powershell(cmd: str) -> bool:
     return False
 
 
-def evaluate(ev: UnifiedEvent) -> list[RuleHit]:
+SCRIPT_CRED = re.compile(r"(invoke-mimikatz|mimikatz|minidumpwritedump|sekurlsa|dumpcreds|lsass)", re.I)
+SCRIPT_AMSI = re.compile(r"(amsiutils|amsiinitfailed|amsicontext|amsi\.dll)", re.I)
+SCRIPT_ENCODED = re.compile(r"frombase64string.{0,200}(iex|invoke-expression)|"
+                            r"(iex|invoke-expression).{0,200}frombase64string",
+                            re.I | re.S)
+TASK_RISKY = re.compile(r"(cmd(\.exe)?\s*/c|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|"
+                        r"[\\/](appdata|temp|users[\\/]public|programdata)[\\/])", re.I)
+SERVICE_RISKY = re.compile(r"(%comspec%|cmd(\.exe)?\s*/c|powershell|pwsh|mshta|psexesvc|"
+                           r"[\\/](appdata|temp|users[\\/]public|programdata)[\\/])", re.I)
+DCSYNC_GUIDS = re.compile(r"(1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|"
+                          r"89e95b76-444d-4c62-991a-0facbeda640c)", re.I)
+ADMIN_SHARES = {"\\\\*\\ADMIN$", "\\\\*\\C$"}
+LSASS_READ_MASK = 0x0010           # PROCESS_VM_READ
+PROC_ACCESS_BENIGN_SOURCES = {"csrss.exe", "wininit.exe", "winlogon.exe", "services.exe", "svchost.exe",
+                              "lsass.exe", "msmpeng.exe", "mssense.exe", "wmiprvse.exe", "taskmgr.exe",
+                              "vmtoolsd.exe", "werfault.exe", "sysmon.exe", "sysmon64.exe"}
+INJECT_BENIGN_SOURCES = {"csrss.exe", "wininit.exe", "winlogon.exe", "services.exe", "svchost.exe",
+                         "msmpeng.exe", "vmtoolsd.exe", "explorer.exe", "searchindexer.exe"}
+
+
+def _evtdata(ev: UnifiedEvent) -> dict:
+    return ev.raw.get("EventData", {}) or {}
+
+
+def _evaluate_other(ev: UnifiedEvent) -> list[RuleHit]:
+    """Rules for non-process events: script blocks, tasks, services, process access, remote threads."""
     hits: list[RuleHit] = []
+    d = _evtdata(ev)
+    if ev.event_type == EventType.script_block:
+        text = str(d.get("ScriptBlockText", ""))
+        if SCRIPT_CRED.search(text):
+            hits.append(RuleHit("rule:credential_tool", 0.9, "PowerShell script block references credential dumping"))
+        if SCRIPT_AMSI.search(text):
+            hits.append(RuleHit("rule:amsi_bypass", 0.85, "PowerShell script block tampers with AMSI"))
+        if DOWNLOAD_PAT.search(text):
+            hits.append(RuleHit("rule:cmd_download", 0.75, "PowerShell script block contains a download cradle"))
+        if SCRIPT_ENCODED.search(text):
+            hits.append(RuleHit("rule:encoded_powershell", 0.85, "PowerShell script block decodes and executes base64"))
+    elif ev.event_type == EventType.scheduled_task:
+        content = str(d.get("TaskContent", ""))
+        if TASK_RISKY.search(content):
+            hits.append(RuleHit("rule:scheduled_task", 0.7,
+                                f"Scheduled task '{d.get('TaskName', '?')}' runs a shell or writable path"))
+    elif ev.event_type == EventType.service_install:
+        path = str(d.get("ImagePath") or d.get("ServiceFileName") or "")
+        if SERVICE_RISKY.search(path):
+            hits.append(RuleHit("rule:service_install", 0.8,
+                                f"Service '{d.get('ServiceName', '?')}' installed with a suspicious image path"))
+        if "psexesvc" in path.lower():
+            hits.append(RuleHit("rule:remote_exec", 0.7, "PsExec service installed (possible lateral movement)"))
+    elif ev.event_type == EventType.log_cleared:
+        hits.append(RuleHit("rule:log_cleared", 0.8, "An audit/event log was cleared"))
+    elif ev.event_type == EventType.object_access:
+        eid = ev.raw.get("EventID")
+        if eid == 4662 and DCSYNC_GUIDS.search(str(d.get("Properties", ""))) \
+                and not str(d.get("SubjectUserName", "")).endswith("$"):
+            hits.append(RuleHit("rule:dcsync", 0.9, "Directory replication rights used by a non-machine account"))
+        elif eid == 5145 and str(d.get("ShareName", "")).upper().rstrip("\\") in ADMIN_SHARES \
+                and not str(d.get("SubjectUserName", "")).endswith("$") \
+                and "WRITE" in str(d.get("AccessList", "")).upper():
+            hits.append(RuleHit("rule:admin_share_write", 0.7,
+                                f"Write access to administrative share {d.get('ShareName')} by a user account"))
+    elif ev.event_type == EventType.process_access:
+        src = (d.get("SourceImage") or "").replace("/", "\\").split("\\")[-1].lower()
+        target = (d.get("TargetImage") or "").lower()
+        try:
+            mask = int(str(d.get("GrantedAccess", "0")), 16)
+        except ValueError:
+            mask = 0
+        if target.endswith("\\lsass.exe") and mask & LSASS_READ_MASK and src not in PROC_ACCESS_BENIGN_SOURCES:
+            hits.append(RuleHit("rule:credential_tool", 0.9,
+                                f"{src or '?'} opened lsass.exe with memory-read access ({d.get('GrantedAccess')})"))
+    elif ev.event_type == EventType.create_remote_thread:
+        src = (d.get("SourceImage") or "").replace("/", "\\").split("\\")[-1].lower()
+        if src and src not in INJECT_BENIGN_SOURCES:
+            hits.append(RuleHit("rule:process_injection", 0.7,
+                                f"{src} created a remote thread in {(d.get('TargetImage') or '?')}"))
+    return hits
+
+
+def evaluate(ev: UnifiedEvent) -> list[RuleHit]:
+    hits: list[RuleHit] = _evaluate_other(ev)
     shown = (ev.process.name or "").lower()
     original = (ev.process.original_name or "").lower()
     proc = original or shown                      # effective binary

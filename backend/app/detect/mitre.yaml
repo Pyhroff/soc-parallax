@@ -21,6 +21,11 @@ techniques:
   T1003:     { tactic: "Credential Access",  name: "OS Credential Dumping" }
   T1547:     { tactic: Persistence,          name: "Boot or Logon Autostart Execution" }
   T1021:     { tactic: "Lateral Movement",   name: "Remote Services" }
+  T1562.001: { tactic: "Defense Evasion",    name: "Impair Defenses: Disable or Modify Tools" }
+  T1070.001: { tactic: "Defense Evasion",    name: "Indicator Removal: Clear Windows Event Logs" }
+  T1003.006: { tactic: "Credential Access",  name: "OS Credential Dumping: DCSync" }
+  T1021.002: { tactic: "Lateral Movement",   name: "Remote Services: SMB/Windows Admin Shares" }
+  T1543.003: { tactic: Persistence,          name: "Create or Modify System Process: Windows Service" }
 
 # signal name -> list of technique ids
 signal_map:
@@ -33,6 +38,12 @@ signal_map:
   "rule:autostart_registry":   [T1547]
   "rule:scheduled_task":       [T1053]
   "rule:remote_exec":          [T1021]
+  "rule:amsi_bypass":          [T1562.001]
+  "rule:service_install":      [T1543.003]
+  "rule:process_injection":    [T1055]
+  "rule:log_cleared":          [T1070.001]
+  "rule:dcsync":               [T1003.006]
+  "rule:admin_share_write":    [T1021.002]
   "rule:renamed_binary":       [T1036.003]
   "rule:system_binary_wrong_path": [T1036.005]
 # Deliberately NOT mapped: "rarity:*" signals. A statistically unusual process is an anomaly,

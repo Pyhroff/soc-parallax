@@ -20,19 +20,31 @@ produced by that script; the `evaluation` GitHub Actions workflow re-runs it on 
 
 ## Results (seed 1337, corpus snapshot of 278 files)
 
+The attack files are split deterministically (by file-name hash) into a dev half (150) and a test half (128).
+Rule weights were calibrated on the dev half only; the test half was scored once with the final settings.
+Caveat: I read the provider and event-ID mix of the whole corpus (both halves) while deciding which parsers to
+write, so the test half is a cleaner estimate than the full set but not a fully blind one.
+
+| Measure | Dev (150) | Test (128) | All (278) |
+|---|---|---|---|
+| Files that parse to zero events | 28 | 18 | 46 (16.5%) |
+| At least one rule fires, any severity | 55 (36.7%) | 45 (35.2%) | 100 (36.0%) |
+| Detection at severity medium or higher | 47 (31.3%) | 35 (27.3%) | 82 (29.5%) |
+| Detection at severity high or higher | | | 5 (1.8%) |
+
+Benign data (synthetic, never seen by the baseline):
+
 | Measure | Result |
 |---|---|
-| Attack files | 278 |
-| Files that parse to zero events | 76 (27%): logs from providers the parser does not read yet |
-| Files where at least one rule fires (any severity) | 55 / 278 (19.8%); 55 / 202 of parseable files (27.2%) |
-| Files with a detection at severity medium or higher | 5 / 278 (1.8%) |
-| Files with a detection at severity high or higher | 3 / 278 (1.1%) |
-| Benign, known entities, severity high or higher | 0 / 1,773 events |
-| Benign, known entities, severity medium or higher | 16 / 1,773 (9.0 per 1,000) |
-| Benign, unseen entities, severity medium or higher | 0 / 1,011 events |
+| Known entities, later weeks, severity high or higher | 0 / 1,773 events |
+| Known entities, severity medium or higher | 16 / 1,773 (9.0 per 1,000), all rarity-only |
+| Unseen entities, severity medium or higher | 0 / 1,011 events |
 
-Per tactic, files where a rule fires: Execution 9/34, Lateral Movement 10/47, Privilege Escalation 10/66,
-Defense Evasion 8/36, Credential Access 5/39, Persistence 4/22, Discovery 0/11, Command and Control 0/6.
+How the numbers moved: the first honest run (rules only, Sysmon and 4688 parsing) gave 19.8% any-rule and 1.8%
+at medium or higher. Adding parsers and rules for PowerShell 4104 script blocks, scheduled tasks (4698),
+service installs (7045), Sysmon process access and remote threads, DCSync (4662), admin-share writes (5145) and
+log clearing (1102) took any-rule to 36.0%, and raising the contextual-rule weight from 0.5 to 0.6 (chosen on the
+dev half) let single strong rules reach medium. The medium-or-higher benign false-positive count did not change.
 
 ## What changed from the earlier published numbers, and why
 
@@ -52,16 +64,17 @@ The honest TPR is lower, and that is the number to quote.
 
 ## Limits that remain
 
-- The benign data is synthetic and small. Zero false positives on it says the rules are not trivially noisy,
-  not that they are quiet on a real network. Medium-severity rarity alerts fire on rare-but-normal behavior
-  (9 per 1,000 known-entity events here), which is why rarity alone cannot reach high.
-- The attack corpus is single-technique lab telemetry, not intrusions. A file is detected if any one event fires.
-- 27% of the corpus is unparsed (PowerShell, TaskScheduler, WMI-Activity, System and other providers). Adding
-  those parsers is the largest single coverage gain available.
-- Rule thresholds were written before this evaluation and not tuned to it. Most single rules score below 40 and
-  show up as low severity, so recall at medium or higher is far lower than recall at any severity.
-- Rules were developed while looking at this corpus's categories, so treat the rules-only numbers as a
-  development-set result, not a clean held-out estimate.
+- The benign data is synthetic and small. Zero false positives at high severity says the rules are not trivially noisy,
+  not that they are quiet on a real network. Rarity-only alerts fire on rare-but-normal behavior (9 per 1,000
+  known-entity events here), which is why rarity alone is capped at medium.
+- Real benign logs are supported but not yet in the published numbers: `--benign-evtx DIR` trains on the first 70%
+  (by time) of real goodware logs and measures false positives on the last 30%. Good sources are your own machine
+  (`scripts/export_local_logs.ps1`) and the goodware EVTX releases of NextronSystems/evtx-baseline. I could not download
+  the latter from the environment this was built in, so that run is still to do.
+- The attack corpus is single-technique lab telemetry, not intrusions, and a file counts as detected if any one event fires.
+- 46 files (16.5%) still parse to zero events: Windows Firewall/RPC/BITS/RDP/Defender and legacy PowerShell 800
+  records, plus several Security events (4663, 4799) without rules. These are the next parsers to add.
+- Rules were written knowing the corpus's categories, so even the test half overstates performance on unseen attacks.
 
 ## Reproduce
 

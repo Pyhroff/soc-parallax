@@ -30,6 +30,7 @@ import pytest
 
 from app.detect import mitre
 from app.detect.signals import rules
+from app.ingest.parsers import sysmon, winevent
 from app.ingest.parsers.generic import event_from_record
 
 
@@ -207,6 +208,8 @@ ALL_RULE_NAMES = {
     "rule:lolbin_execution", "rule:suspicious_parent", "rule:credential_tool",
     "rule:scheduled_task", "rule:remote_exec", "rule:autostart_registry",
     "rule:renamed_binary", "rule:system_binary_wrong_path",
+    "rule:amsi_bypass", "rule:service_install", "rule:process_injection",
+    "rule:log_cleared", "rule:dcsync", "rule:admin_share_write",
 }
 
 
@@ -242,3 +245,63 @@ def test_renamed_binary_negative_control():
     fired = _fire({"event_type": "process", "process_name": "powershell.exe",
                    "OriginalFileName": "PowerShell.EXE", "cmdline": "powershell.exe -File a.ps1"})
     assert "rule:renamed_binary" not in fired
+
+
+# -- non-process events: PowerShell script blocks, tasks, services, process access ----
+
+SYS = {"Computer": "WS-01", "TimeCreated": "2026-06-01T10:00:00Z"}
+
+
+def _names(ev):
+    return {h.name for h in rules.evaluate(ev)}
+
+
+def test_script_block_credential_and_amsi():
+    ev = winevent.powershell_event_from_fields(4104, {"ScriptBlockText": "[Ref].Assembly.GetType('AmsiUtils'); Invoke-Mimikatz"}, SYS)
+    assert {"rule:amsi_bypass", "rule:credential_tool"} <= _names(ev)
+    assert _mitre_ids("rule:amsi_bypass") == {"T1562.001"}
+
+
+def test_script_block_benign():
+    ev = winevent.powershell_event_from_fields(4104, {"ScriptBlockText": "Get-ChildItem C:\\Users | Sort-Object Length"}, SYS)
+    assert _names(ev) == set()
+
+
+def test_scheduled_task_event_risky_vs_benign():
+    risky = winevent.event_from_fields(4698, {"TaskName": "\\upd", "TaskContent": "<Command>cmd.exe /c C:\\Users\\Public\\a.bat</Command>"}, SYS)
+    benign = winevent.event_from_fields(4698, {"TaskName": "\\Backup", "TaskContent": "<Command>C:\\Program Files\\Veeam\\agent.exe</Command>"}, SYS)
+    assert "rule:scheduled_task" in _names(risky)
+    assert "rule:scheduled_task" not in _names(benign)
+
+
+def test_service_install_risky_vs_benign():
+    risky = winevent.service_event_from_fields(7045, {"ServiceName": "x", "ImagePath": "%COMSPEC% /c powershell -nop"}, SYS)
+    benign = winevent.service_event_from_fields(7045, {"ServiceName": "Spooler", "ImagePath": "C:\\Windows\\System32\\spoolsv.exe"}, SYS)
+    assert "rule:service_install" in _names(risky)
+    assert _mitre_ids("rule:service_install") == {"T1543.003"}
+    assert "rule:service_install" not in _names(benign)
+
+
+def test_lsass_access_from_unknown_process_but_not_from_defender():
+    d = {"SourceImage": "C:\\Users\\a\\tool.exe", "TargetImage": "C:\\Windows\\System32\\lsass.exe", "GrantedAccess": "0x1010", "UtcTime": "2026-06-01 10:00:00"}
+    ok = {**d, "SourceImage": "C:\\ProgramData\\Microsoft\\Windows Defender\\MsMpEng.exe"}
+    assert "rule:credential_tool" in _names(sysmon.event_from_fields(10, d, SYS))
+    assert "rule:credential_tool" not in _names(sysmon.event_from_fields(10, ok, SYS))
+
+
+def test_remote_thread_injection_rule():
+    d = {"SourceImage": "C:\\Users\\a\\inj.exe", "TargetImage": "C:\\Windows\\explorer.exe", "UtcTime": "2026-06-01 10:00:00"}
+    assert "rule:process_injection" in _names(sysmon.event_from_fields(8, d, SYS))
+
+
+def test_log_cleared_dcsync_and_admin_share():
+    cleared = winevent.log_cleared_event_from_fields(1102, {}, SYS)
+    assert "rule:log_cleared" in _names(cleared) and _mitre_ids("rule:log_cleared") == {"T1070.001"}
+
+    sync = winevent.event_from_fields(4662, {"Properties": "{1131f6ad-9c07-11d1-f79f-00c04fc2dcd2}", "SubjectUserName": "attacker"}, SYS)
+    dc = winevent.event_from_fields(4662, {"Properties": "{1131f6ad-9c07-11d1-f79f-00c04fc2dcd2}", "SubjectUserName": "DC02$"}, SYS)
+    assert "rule:dcsync" in _names(sync) and "rule:dcsync" not in _names(dc)
+
+    share = {"ShareName": "\\\\*\\ADMIN$", "SubjectUserName": "bob", "AccessList": "%%4417 WriteData"}
+    assert "rule:admin_share_write" in _names(winevent.event_from_fields(5145, share, SYS))
+    assert "rule:admin_share_write" not in _names(winevent.event_from_fields(5145, {**share, "ShareName": "\\\\*\\Public"}, SYS))

@@ -10,9 +10,10 @@ MITRE ATT&CK, correlates them into incidents in a memory graph, and explains
 
 [![tests](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml/badge.svg)](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml) ![stack](https://img.shields.io/badge/stack-FastAPI%20%7C%20Neo4j%20%7C%20Next.js-blue)
 
-> **Measured results** ([method and caveats](docs/EVALUATION.md)): on 278 real EVTX-ATTACK-SAMPLES files, contextual
-> rules fire on 19.8% (27% of the files that parse); 27% of the corpus does not parse yet. On held-out benign data
-> (known and unseen users), nothing reaches high severity. These replace an earlier, inflated 53% / 0.0 figure.
+> **Measured results** ([method and caveats](docs/EVALUATION.md)): on 278 real EVTX-ATTACK-SAMPLES files, rules fire on 36%
+> and reach medium severity or higher on 29.5% (27.3% on a held-out half used only for reporting). On held-out benign
+> data (known and unseen users), nothing reaches high severity. 16.5% of the corpus still does not parse. These replace
+> an earlier, inflated 53% / 0.0 figure.
 
 ---
 
