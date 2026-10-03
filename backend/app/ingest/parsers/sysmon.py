@@ -26,6 +26,7 @@ SYSMON_TYPE_MAP: dict[int, EventType] = {
     3: EventType.network_connect,
     7: EventType.image_load,
     8: EventType.create_remote_thread,
+    10: EventType.process_access,
     11: EventType.file_create,
     13: EventType.registry_set,
     22: EventType.dns_query,
@@ -122,7 +123,8 @@ def parse_evtx_file(path: str | os.PathLike) -> Iterator[UnifiedEvent]:
     (EventID 1 from Sysmon is a process creation; EventID 1 from another
     provider is not), so records are routed by provider:
       * Microsoft-Windows-Sysmon        -> Sysmon mapping
-      * Microsoft-Windows-Security-Auditing -> Windows Security mapping (4624/4625/4688/4672/4720)
+      * Microsoft-Windows-Security-Auditing -> Windows Security mapping (see winevent.WINEVENT_TYPE_MAP)
+      * Microsoft-Windows-PowerShell 4104 (script blocks) and Service Control Manager 7045 (service installs)
     Everything else is skipped on purpose.
     """
     from Evtx.Evtx import Evtx  # type: ignore
@@ -160,6 +162,12 @@ def parse_evtx_file(path: str | os.PathLike) -> Iterator[UnifiedEvent]:
                 if event_id not in winevent.WINEVENT_TYPE_MAP:
                     continue
                 mapper = winevent.event_from_fields
+            elif provider == "Microsoft-Windows-Eventlog" and event_id == 1102:
+                mapper = winevent.log_cleared_event_from_fields
+            elif provider == "Microsoft-Windows-PowerShell" and event_id == 4104:
+                mapper = winevent.powershell_event_from_fields
+            elif provider == "Service Control Manager" and event_id == 7045:
+                mapper = winevent.service_event_from_fields
             else:
                 continue
 

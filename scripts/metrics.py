@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import sys
@@ -60,34 +61,49 @@ def _files(root: str, exts: tuple[str, ...]):
     return sorted(out)
 
 
-def build_baseline(train_path: str):
+def iter_events(path: str):
+    for p in _files(path, (".json", ".ndjson", ".csv", ".evtx")):
+        yield from parse_file(p)
+
+
+def build_baseline(train_path: str | None = None, events=None):
+    """Build in-memory baselines from a path, or from an explicit event iterable."""
     hist: dict[tuple, dict] = defaultdict(lambda: defaultdict(int))
     used = skipped = 0
-    for path in _files(train_path, (".json", ".ndjson", ".csv", ".evtx")):
-        for ev in parse_file(path):
-            if rules.evaluate(ev):
-                skipped += 1               # never train on rule-matching behavior
-                continue
-            used += 1
-            for o in extract(ev):
-                hist[(o.entity_type, o.entity_id, o.feature)][o.value] += 1
+    for ev in (events if events is not None else iter_events(train_path)):
+        if rules.evaluate(ev):
+            skipped += 1               # never train on rule-matching behavior
+            continue
+        used += 1
+        for o in extract(ev):
+            hist[(o.entity_type, o.entity_id, o.feature)][o.value] += 1
     store = {k: {"distribution": dict(v), "sample_count": sum(v.values())} for k, v in hist.items()}
     return (lambda t, e, f: store.get((t, e, f))), {"train_events": used, "train_skipped_rule_hits": skipped,
                                                     "baselines": len(store)}
 
 
-def false_positives(path: str, baseline_fn, floor: int) -> dict:
+def false_positives(path: str | None, baseline_fn, floor: int, events=None) -> dict:
     total = fp = 0
-    for p in _files(path, (".json", ".ndjson", ".csv")):
-        for ev in parse_file(p):
-            total += 1
-            det = scorer.score_event(ev, baseline_fn)
-            fp += int(bool(det and SEV_RANK[det.severity] >= floor))
-    return {"events": total, "false_positives": fp, "per_1k": round(fp / total * 1000, 2) if total else 0.0}
+    any_alert = 0
+    for ev in (events if events is not None else iter_events(path)):
+        total += 1
+        det = scorer.score_event(ev, baseline_fn)
+        fp += int(bool(det and SEV_RANK[det.severity] >= floor))
+        any_alert += int(det is not None)
+    return {"events": total, "false_positives": fp, "per_1k": round(fp / total * 1000, 2) if total else 0.0,
+            "any_alert": any_alert}
 
 
-def attack_eval(root: str, baseline_fn, floor: int) -> dict:
-    files = _files(root, (".evtx",))
+def in_split(path: str, split: str) -> bool:
+    """Deterministic dev/test partition of the attack corpus by file name (stable across runs)."""
+    if split == "all":
+        return True
+    bucket = int(hashlib.sha1(os.path.basename(path).encode()).hexdigest(), 16) % 2
+    return (bucket == 0) == (split == "dev")
+
+
+def attack_eval(root: str, baseline_fn, floor: int, split: str = "all") -> dict:
+    files = [f for f in _files(root, (".evtx",)) if in_split(f, split)]
     res = {"files": len(files), "zero_events": 0, "rules_any": 0, "full_at_floor": 0, "rules_at_floor": 0}
     tactics: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])   # total, rules_any, full
     for path in files:
@@ -96,10 +112,10 @@ def attack_eval(root: str, baseline_fn, floor: int) -> dict:
         n = rules_any = rules_floor = full_floor = 0
         for ev in parse_file(path):
             n += 1
-            rules_any = rules_any or bool(rules.evaluate(ev))
-            d0 = scorer.score_event(ev, lambda *_: None)
+            d0 = scorer.score_event(ev, lambda *_: None)          # rules only
+            rules_any = rules_any or d0 is not None
             rules_floor = rules_floor or bool(d0 and SEV_RANK[d0.severity] >= floor)
-            d1 = scorer.score_event(ev, baseline_fn)
+            d1 = scorer.score_event(ev, baseline_fn)              # rules + rarity
             full_floor = full_floor or bool(d1 and SEV_RANK[d1.severity] >= floor)
         res["zero_events"] += int(n == 0)
         res["rules_any"] += int(rules_any)
@@ -116,7 +132,10 @@ def attack_eval(root: str, baseline_fn, floor: int) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--train", required=True)
+    ap.add_argument("--train")
+    ap.add_argument("--benign-evtx", help="REAL benign .evtx logs; split 70/30 by time")
+    ap.add_argument("--split", choices=["all", "dev", "test"], default="all",
+                    help="attack-file partition: tune on dev, report on test")
     ap.add_argument("--heldout-known")
     ap.add_argument("--heldout-unseen")
     ap.add_argument("--attack")
@@ -125,14 +144,25 @@ def main():
     a = ap.parse_args()
     floor = SEV_RANK[a.min_severity]
 
-    baseline_fn, info = build_baseline(a.train)
-    out: dict = {"min_severity": a.min_severity, "training": info}
+    real_heldout = None
+    if a.benign_evtx:
+        evs = sorted(iter_events(a.benign_evtx), key=lambda e: e.timestamp)
+        cut = int(len(evs) * 0.7)
+        baseline_fn, info = build_baseline(events=evs[:cut])
+        real_heldout = evs[cut:]
+    elif a.train:
+        baseline_fn, info = build_baseline(a.train)
+    else:
+        ap.error("give --train or --benign-evtx")
+    out: dict = {"min_severity": a.min_severity, "split": a.split, "training": info}
+    if real_heldout is not None:
+        out["benign_real_heldout"] = false_positives(None, baseline_fn, floor, events=real_heldout)
     if a.heldout_known:
         out["benign_known_entities"] = false_positives(a.heldout_known, baseline_fn, floor)
     if a.heldout_unseen:
         out["benign_unseen_entities"] = false_positives(a.heldout_unseen, baseline_fn, floor)
     if a.attack:
-        out["attack"] = attack_eval(a.attack, baseline_fn, floor)
+        out["attack"] = attack_eval(a.attack, baseline_fn, floor, a.split)
 
     print(json.dumps(out, indent=2))
     if a.json_out:

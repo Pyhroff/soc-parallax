@@ -7,7 +7,7 @@ Measured performance and its limits: [`EVALUATION.md`](EVALUATION.md).
 ## Scoring model
 
 ### 1. Contextual rules (high fidelity, no baseline needed)
-Weight `0.50`. Defined in `app/detect/signals/rules.py`, mapped to ATT&CK in `app/detect/mitre.yaml`.
+Weight `0.60`. Defined in `app/detect/signals/rules.py`, mapped to ATT&CK in `app/detect/mitre.yaml`.
 Command lines are tokenized, so `-enc`, `-e`, `-ec`, `-EncodedCommand` and other accepted prefixes are all recognized.
 The binary identity is the PE `OriginalFileName` when present, so renaming a binary does not hide it.
 
@@ -22,11 +22,21 @@ The binary identity is the PE `OriginalFileName` when present, so renaming a bin
 | `scheduled_task` | 0.60 | T1053 | schtasks /create |
 | `remote_exec` | 0.70 | T1021 | psexec family, or wmic /node ... process call create |
 | `autostart_registry` | 0.65 | T1547 | Run / RunOnce key write |
+| `amsi_bypass` | 0.85 | T1562.001 | PowerShell script block (4104) touching AMSI internals |
+| `service_install` | 0.80 | T1543.003 | New service (7045) whose image path is a shell, script host, or user-writable path |
+| `process_injection` | 0.70 | T1055 | Sysmon 8 remote thread from a process outside a small system allowlist |
+| `log_cleared` | 0.80 | T1070.001 | Audit log cleared (1102) |
+| `dcsync` | 0.90 | T1003.006 | Directory-replication rights (4662) used by a non-machine account |
+| `admin_share_write` | 0.70 | T1021.002 | Write to ADMIN$/C$ (5145) by a user account |
 | `renamed_binary` | 0.70 | T1036.003 | PE original filename differs from the image name |
 | `system_binary_wrong_path` | 0.80 | T1036.005 | svchost/lsass/csrss/... running outside System32 |
 
-A single rule contributes at most 45 points, so one rule alone lands at low or medium severity; stacked
-rules or a rarity signal on top are needed to reach high.
+A single rule contributes at most 54 points, so a strong rule alone lands at medium and weak ones (sub_score below 0.67)
+at low; stacked rules or a rarity signal on top are needed to reach high.
+
+Several rules also fire on non-process events: PowerShell script blocks (credential tooling, AMSI tampering, download
+cradles, base64 decode-and-execute), scheduled-task creation (4698), Sysmon process access to lsass.exe with
+memory-read rights from processes outside a Defender/system allowlist.
 
 ### 2. Rarity signals (need history)
 `sub_score = min(1, -log(p) / 3.3)` with `p` the Laplace-smoothed probability of the value for that entity/feature.
@@ -58,8 +68,8 @@ Calibration rules, each added because the opposite was measured to be wrong:
 
 | Signal | contribution |
 |--------|-------------|
-| rule:office_spawn_shell | 45.0 |
-| rule:encoded_powershell | 42.5 |
+| rule:office_spawn_shell | 54.0 |
+| rule:encoded_powershell | 51.0 |
 | rarity:process_name | up to 35 |
 | **score** | **100 (critical)** |
 
@@ -69,4 +79,4 @@ Each line is reconstructable from `detection.signals`.
 - Rules are string and field matches on process creation events; an attacker who avoids the matched patterns is not caught.
 - Rarity flags rare-but-normal behavior at medium severity; this is why it is capped.
 - Histogram baselines lose sequence and timing information.
-- Only Sysmon and Security-Auditing EVTX events are parsed; other providers are skipped.
+- Only Sysmon, Security-Auditing, PowerShell 4104, Service Control Manager 7045 and Eventlog 1102 are parsed; other providers are skipped.

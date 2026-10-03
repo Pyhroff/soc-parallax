@@ -31,7 +31,7 @@ RARITY_WEIGHTS: dict[str, float] = {
     "dest_ip": 0.20,
     "domain": 0.15,
 }
-RULE_WEIGHT = 0.50          # contextual rules are high-fidelity
+RULE_WEIGHT = 0.60          # contextual rules are high-fidelity; one strong rule reaches medium
 RARITY_MIN = 0.55           # ignore rarity below this (not anomalous enough)
 
 

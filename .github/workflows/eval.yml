@@ -27,7 +27,7 @@ jobs:
             --train data/samples/normal/baseline_normal.json \
             --heldout-known data/samples/normal/heldout_known.json \
             --heldout-unseen data/samples/normal/heldout_unseen.json \
-            --attack /tmp/evtx --min-severity medium --json eval.json
+            --attack /tmp/evtx --min-severity medium --split test --json eval.json
       - uses: actions/upload-artifact@v4
         with:
           name: eval-results

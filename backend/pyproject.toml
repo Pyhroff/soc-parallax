@@ -39,6 +39,9 @@ target-version = "py311"
 # that failure mode, not just one.
 select = ["E", "F"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
