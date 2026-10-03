@@ -27,6 +27,8 @@ ALIASES: dict[str, list[str]] = {
     "process_name": ["process.name", "Image", "process_name", "winlog.event_data.Image"],
     "cmdline": ["process.command_line", "CommandLine", "cmdline"],
     "parent": ["process.parent.name", "ParentImage", "parent_image"],
+    "original_name": ["process.pe.original_file_name", "OriginalFileName", "original_file_name"],
+    "image_path": ["process.executable", "Image", "image_path"],
     "dest_ip": ["destination.ip", "DestinationIp", "dest_ip", "dst_ip"],
     "dest_port": ["destination.port", "DestinationPort", "dest_port", "dst_port"],
     "domain": ["dns.question.name", "QueryName", "destination.domain", "domain"],
@@ -106,6 +108,8 @@ def event_from_record(record: dict) -> UnifiedEvent:
             name=_basename(_resolve(record, "process_name")),
             parent=_basename(_resolve(record, "parent")),
             cmdline=_resolve(record, "cmdline"),
+            image_path=_resolve(record, "image_path"),
+            original_name=_resolve(record, "original_name"),
         ),
         network=NetworkInfo(
             dest_ip=_resolve(record, "dest_ip"),

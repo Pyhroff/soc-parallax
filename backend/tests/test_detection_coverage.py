@@ -93,7 +93,7 @@ def test_cmd_download_negative_control():
 
 def test_lolbin_execution_detected():
     fired = _fire({"event_type": "process", "process_name": "rundll32.exe",
-                   "cmdline": "rundll32.exe shell32.dll,ShellExec_RunDLL"})
+                   "cmdline": "rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication\""})
     assert "rule:lolbin_execution" in fired
     assert _mitre_ids("rule:lolbin_execution") == {"T1218"}
 
@@ -108,7 +108,7 @@ def test_lolbin_execution_negative_control():
 
 def test_suspicious_parent_detected():
     fired = _fire({"event_type": "process", "process_name": "cmd.exe",
-                   "parent_image": "services.exe", "cmdline": "cmd.exe /c whoami"})
+                   "parent_image": "w3wp.exe", "cmdline": "cmd.exe /c whoami"})
     assert "rule:suspicious_parent" in fired
     assert _mitre_ids("rule:suspicious_parent") == {"T1055", "T1036"}
 
@@ -206,6 +206,7 @@ ALL_RULE_NAMES = {
     "rule:office_spawn_shell", "rule:encoded_powershell", "rule:cmd_download",
     "rule:lolbin_execution", "rule:suspicious_parent", "rule:credential_tool",
     "rule:scheduled_task", "rule:remote_exec", "rule:autostart_registry",
+    "rule:renamed_binary", "rule:system_binary_wrong_path",
 }
 
 
@@ -226,3 +227,18 @@ def test_every_rule_maps_to_at_least_one_known_technique(rule_name):
     silently breaking the 'every score traces to a signal' guarantee
     scorer.py's own docstring claims."""
     assert len(_mitre_ids(rule_name)) >= 1
+
+
+# -- masquerading rules --------------------------------------------------------
+
+def test_renamed_binary_detected():
+    fired = _fire({"event_type": "process", "process_name": "svchost_update.exe",
+                   "OriginalFileName": "powershell.exe", "cmdline": "svchost_update.exe -nop"})
+    assert "rule:renamed_binary" in fired
+    assert _mitre_ids("rule:renamed_binary") == {"T1036.003"}
+
+
+def test_renamed_binary_negative_control():
+    fired = _fire({"event_type": "process", "process_name": "powershell.exe",
+                   "OriginalFileName": "PowerShell.EXE", "cmdline": "powershell.exe -File a.ps1"})
+    assert "rule:renamed_binary" not in fired

@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from app.baseline.features import extract
 from app.config import settings
 from app.db import postgres as pg
+from app.detect.signals import rules
 from app.schemas.event import UnifiedEvent
 
 # Laplace smoothing: pretend we've seen this many "other" possible values.
@@ -28,7 +29,7 @@ def build_baselines(training_window_days: int | None = None) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     rows = pg.query(
-        'SELECT payload, "timestamp" FROM events WHERE "timestamp" >= %s',
+        'SELECT payload, "timestamp" FROM events WHERE "timestamp" >= %s AND dataset = \'baseline\'',
         (cutoff,),
     )
 
@@ -36,8 +37,12 @@ def build_baselines(training_window_days: int | None = None) -> dict:
     histograms: dict[tuple[str, str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
     seen: dict[tuple[str, str, str], list[datetime]] = defaultdict(list)
 
+    skipped_rule_hits = 0
     for row in rows:
         ev = UnifiedEvent.model_validate(row["payload"])
+        if rules.evaluate(ev):
+            skipped_rule_hits += 1       # attacker-looking behavior never becomes "normal"
+            continue
         for o in extract(ev):
             key = (o.entity_type, o.entity_id, o.feature)
             histograms[key][o.value] += 1
@@ -66,6 +71,7 @@ def build_baselines(training_window_days: int | None = None) -> dict:
     return {
         "training_window_days": days,
         "events_scanned": len(rows),
+        "skipped_rule_hits": skipped_rule_hits,
         "baselines_written": written,
         "entities": len({(e, i) for (e, i, _f) in histograms}),
     }
@@ -84,8 +90,9 @@ def get_baseline(entity_type: str, entity_id: str, feature: str) -> dict | None:
 def probability(baseline: dict | None, value: str) -> float:
     """Smoothed probability of `value` given a baseline histogram.
 
-    No baseline at all -> return a small constant so the entity isn't penalized
-    for simply being new (that's handled separately by 'cold start' logic).
+    No baseline at all -> a small constant. NOTE: that constant means "very
+    surprising", so callers must NOT score rarity without enough history; the
+    scorer enforces `settings.min_baseline_samples` before using this.
     """
     if not baseline:
         return 0.05
@@ -106,14 +113,3 @@ def rarity_score(baseline: dict | None, value: str) -> float:
     surprise = -math.log(p)
     # -log(0.05) ~= 3.0 (a fresh/unseen value); scale so ~3.0 -> ~0.9
     return min(1.0, surprise / 3.3)
-
-
-def numeric_zscore(baseline: dict | None, value: float) -> float:
-    """For numeric features stored as {mean, std}. Returns 0..1 strength."""
-    if not baseline:
-        return 0.0
-    dist = baseline["distribution"]
-    mean = dist.get("mean", 0.0)
-    std = dist.get("std", 1.0) or 1.0
-    z = abs((value - mean) / std)
-    return min(1.0, z / 4.0)   # |z|>=4 -> max

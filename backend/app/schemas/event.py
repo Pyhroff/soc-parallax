@@ -32,6 +32,8 @@ class ProcessInfo(BaseModel):
     ppid: int | None = None
     parent: str | None = None        # parent image name, e.g. "explorer.exe"
     cmdline: str | None = None
+    image_path: str | None = None    # full image path as logged, e.g. C:\\Windows\\System32\\svchost.exe
+    original_name: str | None = None  # PE OriginalFileName (Sysmon), survives a rename
     hashes: dict[str, str] = Field(default_factory=dict)
 
 

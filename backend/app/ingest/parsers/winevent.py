@@ -47,6 +47,7 @@ def event_from_fields(event_id: int, data: dict, system: dict | None = None) -> 
             pid=_to_int(data.get("NewProcessId")),
             parent=_basename(data.get("ParentProcessName")),
             cmdline=data.get("CommandLine"),
+            image_path=data.get("NewProcessName"),
         )
 
     return UnifiedEvent(

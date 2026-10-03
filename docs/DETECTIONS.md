@@ -1,65 +1,72 @@
 # Detection Logic & MITRE Coverage
 
-This is the document an interviewer will drill into. Every detection here is
-explainable and maps to MITRE ATT&CK. Scores are attributable — `score =
-min(100, Σ contribution)`, where `contribution = weight × sub_score × 100`.
+Every detection is explainable and maps to MITRE ATT&CK where a mapping is justified.
+`score = min(100, Σ contribution)`, where `contribution = weight × sub_score × 100`.
+Measured performance and its limits: [`EVALUATION.md`](EVALUATION.md).
 
 ## Scoring model
 
-Two signal families combine into one detection:
+### 1. Contextual rules (high fidelity, no baseline needed)
+Weight `0.50`. Defined in `app/detect/signals/rules.py`, mapped to ATT&CK in `app/detect/mitre.yaml`.
+Command lines are tokenized, so `-enc`, `-e`, `-ec`, `-EncodedCommand` and other accepted prefixes are all recognized.
+The binary identity is the PE `OriginalFileName` when present, so renaming a binary does not hide it.
 
-### 1. Rarity signals (need a behavioral baseline)
-`sub_score = min(1, -log(p) / 3.3)` where `p` is the Laplace-smoothed probability
-of the observed value for that entity/feature. A never-before-seen value → high
-sub_score. Smoothing keeps it finite and avoids divide-by-zero on cold start.
+| Rule | sub_score | MITRE | Fires when |
+|------|-----------|-------|------------|
+| `office_spawn_shell` | 0.90 | T1566, T1059.001 | Office app launches a shell or LOLBIN |
+| `encoded_powershell` | 0.85 | T1059.001, T1027 | PowerShell with an encoded-command flag and a payload |
+| `cmd_download` | 0.75 | T1105 | Download cradle (DownloadString, iwr, certutil -urlcache, ...) |
+| `lolbin_execution` | 0.60 | T1218 | rundll32 / regsvr32 / mshta / certutil / bitsadmin / msbuild / installutil with suspicious arguments, or an office/script-host parent. `msbuild` from a developer tool is exempt |
+| `suspicious_parent` | 0.70 | T1055, T1036 | Server process (w3wp, sqlservr, wmiprvse, ...) spawns a shell |
+| `credential_tool` | 0.90 | T1003 | mimikatz, or arguments such as sekurlsa, lsadump::, comsvcs minidump, procdump on lsass |
+| `scheduled_task` | 0.60 | T1053 | schtasks /create |
+| `remote_exec` | 0.70 | T1021 | psexec family, or wmic /node ... process call create |
+| `autostart_registry` | 0.65 | T1547 | Run / RunOnce key write |
+| `renamed_binary` | 0.70 | T1036.003 | PE original filename differs from the image name |
+| `system_binary_wrong_path` | 0.80 | T1036.005 | svchost/lsass/csrss/... running outside System32 |
 
-| Feature | Entity | Weight | Behavioral question |
-|---------|--------|--------|---------------------|
-| `process_name` | user | 0.35 | Does this user normally run this program? |
-| `parent_child` | host | 0.30 | Is this parent→child process chain normal here? |
-| `login_hour`   | user | 0.20 | Does this user normally log in at this hour? |
-| `src_ip`       | user | 0.20 | Does this user normally log in from this IP? |
-| `dest_ip`      | host | 0.20 | Does this host normally talk to this IP? |
-| `domain`       | host | 0.15 | Does this host normally resolve this domain? |
+A single rule contributes at most 45 points, so one rule alone lands at low or medium severity; stacked
+rules or a rarity signal on top are needed to reach high.
 
-Rarity below `0.55` is ignored (not anomalous enough → controls false positives).
+### 2. Rarity signals (need history)
+`sub_score = min(1, -log(p) / 3.3)` with `p` the Laplace-smoothed probability of the value for that entity/feature.
 
-### 2. Contextual rules (no baseline needed — suspicious regardless of history)
-Weight `0.50`, sub_score per rule. Defined in `app/detect/signals/rules.py`,
-mapped to ATT&CK in `app/detect/mitre.yaml`.
+| Feature | Entity | Weight |
+|---------|--------|--------|
+| `process_name` | user | 0.35 |
+| `parent_child` | host | 0.30 |
+| `login_hour` | user | 0.20 |
+| `src_ip` | user | 0.20 |
+| `dest_ip` | host | 0.20 |
+| `domain` | host | 0.15 |
 
-| Rule | sub_score | MITRE | Rationale |
-|------|-----------|-------|-----------|
-| `office_spawn_shell` | 0.90 | T1566, T1059.001 | Word/Excel spawning a shell = phishing payload |
-| `encoded_powershell` | 0.85 | T1059.001, T1027 | `-enc` base64 command = obfuscated execution |
-| `cmd_download` | 0.75 | T1105 | Download cradle (IEX/WebClient/certutil) |
-| `lolbin_execution` | 0.60 | T1218 | rundll32/regsvr32/mshta/certutil abuse |
-| `suspicious_parent` | 0.70 | T1055, T1036 | service→shell chain (e.g. w3wp→cmd) |
-| `credential_tool` | 0.90 | T1003 | mimikatz/procdump/sekurlsa |
-| `scheduled_task` | 0.60 | T1053 | schtasks /create persistence |
-| `remote_exec` | 0.70 | T1021 | psexec / wmic process call create |
-| `autostart_registry` | 0.65 | T1547 | Run/RunOnce key write |
+Calibration rules, each added because the opposite was measured to be wrong:
+
+- No rarity signal unless the baseline has at least `MIN_BASELINE_SAMPLES` (50) observations. A new
+  user or host is not flagged for being new.
+- Each feature counts once per event (the stronger of the entity baselines), not once per entity.
+- Rarity below 0.55 is ignored.
+- Rarity signals carry no ATT&CK technique: unusual is not a technique.
+- A detection with no rule behind it is capped at `RARITY_ONLY_CAP` (69), so rarity alone is never high or critical.
+- Baselines are trained only from events labelled `baseline`, and events that trip a rule are excluded.
 
 ## Severity thresholds
 `low < 40 ≤ medium < 70 ≤ high < 90 ≤ critical` (tunable in `config.py`).
 
-## Worked example — the phishing scenario
-`winword.exe → powershell.exe -enc …` at 02:14 for a user who never runs PowerShell:
+## Worked example
+`winword.exe → powershell.exe -enc …` for a user with an established baseline who never runs PowerShell:
 
 | Signal | contribution |
 |--------|-------------|
 | rule:office_spawn_shell | 45.0 |
 | rule:encoded_powershell | 42.5 |
-| rarity:process_name (powershell unseen for jdoe) | ~31 |
+| rarity:process_name | up to 35 |
 | **score** | **100 (critical)** |
 
-Each line is reconstructable from `detection.signals` — that's the whole point.
+Each line is reconstructable from `detection.signals`.
 
-## Known weaknesses (have an honest answer ready)
-- **Cold start**: a brand-new entity has no baseline; rarity is suppressed (returns
-  a low constant) so new users aren't auto-flagged. Trade-off: misses true positives
-  during the learning window.
-- **Rare-but-legit**: a sysadmin's first-ever use of a tool can false-positive. Mitigation
-  path: per-role allowlists / suppression rules / analyst feedback loop (roadmap).
-- **Encoding the baseline as histograms** loses sequence/timing info — good enough for
-  v1, but sequence models (n-gram / HMM) are the natural next step.
+## Known weaknesses
+- Rules are string and field matches on process creation events; an attacker who avoids the matched patterns is not caught.
+- Rarity flags rare-but-normal behavior at medium severity; this is why it is capped.
+- Histogram baselines lose sequence and timing information.
+- Only Sysmon and Security-Auditing EVTX events are parsed; other providers are skipped.

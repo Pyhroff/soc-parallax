@@ -65,3 +65,38 @@ def test_false_positive_normal_browser_launch(monkeypatch):
     ev = sysmon.event_from_fields(1, data, {"Computer": "WS-07"})
     det = scorer.score_event(ev)
     assert det is None   # common behavior, no rules -> not flagged
+
+
+# -- calibration: cold start, minimum history, cap, de-duplication ------------
+
+def _benign_chrome():
+    data = {"UtcTime": "2026-06-08 11:00:00", "Image": r"C:\Program Files\Google\Chrome\chrome.exe",
+            "CommandLine": "chrome.exe", "ParentImage": r"C:\Windows\explorer.exe",
+            "User": "ACME\\newhire"}
+    return sysmon.event_from_fields(1, data, {"Computer": "WS-99"})
+
+
+def test_cold_start_unseen_entity_is_not_flagged(monkeypatch):
+    monkeypatch.setattr(scorer, "get_baseline", lambda *a: None)
+    assert scorer.score_event(_benign_chrome()) is None
+
+
+def test_thin_baseline_does_not_produce_rarity(monkeypatch):
+    monkeypatch.setattr(scorer, "get_baseline", lambda *a: _common_baseline({"x": 5}))
+    assert scorer.score_event(_benign_chrome()) is None
+
+
+def test_rarity_only_is_capped_and_unmapped(monkeypatch):
+    monkeypatch.setattr(scorer, "get_baseline", lambda *a: _common_baseline({"x": 1000}))
+    det = scorer.score_event(_benign_chrome())
+    assert det is not None
+    assert det.score <= scorer.settings.rarity_only_cap
+    assert det.severity in ("low", "medium")
+    assert det.mitre == []
+
+
+def test_one_rarity_signal_per_feature(monkeypatch):
+    monkeypatch.setattr(scorer, "get_baseline", lambda *a: _common_baseline({"x": 1000}))
+    det = scorer.score_event(_benign_chrome())
+    names = [s.name for s in det.signals]
+    assert len(names) == len(set(names))

@@ -10,6 +10,7 @@ is always runnable and testable.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, TypedDict
 
@@ -19,6 +20,8 @@ from app.graph import queries as gq
 from app.narrate.narrator import narrate
 from app.schemas.detection import Detection
 from app.schemas.event import UnifiedEvent
+
+log = logging.getLogger("parallax.investigate")
 
 
 class InvestigationState(TypedDict, total=False):
@@ -84,8 +87,9 @@ def correlate(state: InvestigationState) -> InvestigationState:
             nxt = gq.likely_next_techniques(t["technique_id"])
             if nxt:
                 related.setdefault("predicted_next", []).extend(nxt)
-    except Exception as exc:  # graph optional
-        related["graph_error"] = str(exc)
+    except Exception:  # graph is optional; detail goes to the log, not the response
+        log.warning("memory graph query failed", exc_info=True)
+        related["graph_error"] = "memory graph unavailable"
     state["related"] = related
     _log(state, "correlate", f"Queried memory graph; "
                             f"{len(related.get('blast_radius', []))} related host(s)")
@@ -130,9 +134,11 @@ def run_investigation(entity_type: str, entity_id: str, window_hours: int = 24) 
     }
     try:
         compiled = _build_compiled()
-        final = compiled.invoke(state)
-    except Exception:
-        # sequential fallback — same nodes, no langgraph dependency
+    except ImportError:
+        compiled = None                     # langgraph not installed: run the same nodes in order
+    if compiled is not None:
+        final = compiled.invoke(state)      # real errors propagate instead of silently re-running
+    else:
         for node in (collect, baseline_compare, mitre_map, correlate, narrate_node):
             state = node(state)
         final = state

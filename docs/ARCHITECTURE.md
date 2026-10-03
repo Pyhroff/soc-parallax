@@ -40,7 +40,7 @@ pretty the dashboard is.
 | 1. Behavioral DNA Engine        | **BUILD**          | The core idea. Per-entity baselines + anomaly scoring. |
 | 5. Narrative Intelligence       | **BUILD**          | The differentiator. Explainable findings via local LLM. |
 | 2. Organizational Memory Graph  | **BUILD (lite)**   | Neo4j, but only the nodes/edges the slice needs. Strong "stretch" win. |
-| 4. Autonomous Investigation     | **BUILD (minimal)**| A *small* deterministic LangGraph: collect → baseline → MITRE → narrate. No agent sprawl. |
+| 4. Investigation workflow       | **BUILD (minimal)**| A *small* deterministic LangGraph: collect → baseline → MITRE → narrate. No agent sprawl. |
 | 3. Attack Genome Engine         | Roadmap            | Cool, but similarity scoring is easy to fake and hard to defend. Defer. |
 | 6. Threat Evolution Predictor   | Roadmap            | Needs data you don't have. Defer (architecture leaves room). |
 | 7. Attack Replay Engine         | Roadmap (UI later) | Timeline view is a nice-to-have on the incident page. |
@@ -301,7 +301,7 @@ IP/technique in the narrative is absent from the evidence (anti-hallucination te
 
 ---
 
-## 8. Autonomous Investigation (LangGraph — keep it small)
+## 8. Investigation workflow (LangGraph — keep it small)
 
 A **deterministic** graph, not a free-roaming agent. 5 nodes:
 ```

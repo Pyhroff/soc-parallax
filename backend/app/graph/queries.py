@@ -5,7 +5,10 @@ from app.db import neo4j
 
 
 def blast_radius(entity_name: str) -> list[dict]:
-    """Hosts an entity touched and the external IPs those hosts contacted."""
+    """Hosts a user logged into, and IPs contacted by processes on those hosts.
+
+    This is HOST-level exposure, not attribution: a connection is listed because it
+    happened on a host the user touched, not because the user caused it."""
     return neo4j.run(
         """
         MATCH (u:User {name:$name})-[:LOGGED_INTO]->(h:Host)

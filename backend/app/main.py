@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.config import settings
+from app.api.auth import require
 from app.api.routes import analytics, ingest
 from app.db import neo4j, postgres
 
@@ -36,9 +38,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # dev only; lock down for prod
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
 app.include_router(ingest.router)
@@ -47,15 +49,18 @@ app.include_router(analytics.router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict:
+    """Unauthenticated liveness only: no dependency details are exposed."""
+    return {"app": "ok"}
+
+
+@app.get("/health/deps", tags=["meta"], dependencies=[Depends(require("analyst"))])
+def health_deps() -> dict:
     status = {"app": "ok"}
-    try:
-        postgres.query("SELECT 1")
-        status["postgres"] = "ok"
-    except Exception as exc:
-        status["postgres"] = f"error: {exc}"
-    try:
-        neo4j.run("RETURN 1")
-        status["neo4j"] = "ok"
-    except Exception as exc:
-        status["neo4j"] = f"error: {exc}"
+    for name, fn in (("postgres", lambda: postgres.query("SELECT 1")),
+                     ("neo4j", lambda: neo4j.run("RETURN 1"))):
+        try:
+            fn()
+            status[name] = "ok"
+        except Exception:
+            status[name] = "unavailable"
     return status
