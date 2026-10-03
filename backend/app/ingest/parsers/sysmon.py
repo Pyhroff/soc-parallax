@@ -74,6 +74,8 @@ def event_from_fields(event_id: int, data: dict, system: dict | None = None) -> 
         ppid=_to_int(data.get("ParentProcessId")),
         parent=_basename(data.get("ParentImage")),
         cmdline=data.get("CommandLine"),
+        image_path=data.get("Image"),
+        original_name=data.get("OriginalFileName"),
         hashes=_parse_hashes(data.get("Hashes")),
     )
     network = NetworkInfo(
@@ -114,19 +116,27 @@ def _to_int(value) -> int | None:
 # EVTX streaming (real files from e.g. EVTX-ATTACK-SAMPLES)
 # ---------------------------------------------------------------------------
 def parse_evtx_file(path: str | os.PathLike) -> Iterator[UnifiedEvent]:
-    """Stream a .evtx file and yield UnifiedEvents for Sysmon records.
+    """Stream a .evtx file and yield UnifiedEvents.
 
-    Imported lazily so the rest of the app doesn't hard-depend on python-evtx.
+    Event IDs are only meaningful together with the provider that wrote them
+    (EventID 1 from Sysmon is a process creation; EventID 1 from another
+    provider is not), so records are routed by provider:
+      * Microsoft-Windows-Sysmon        -> Sysmon mapping
+      * Microsoft-Windows-Security-Auditing -> Windows Security mapping (4624/4625/4688/4672/4720)
+    Everything else is skipped on purpose.
     """
     from Evtx.Evtx import Evtx  # type: ignore
     from lxml import etree  # type: ignore
 
+    from app.ingest.parsers import winevent
+
     ns = {"e": "http://schemas.microsoft.com/win/2004/08/events/event"}
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
 
     with Evtx(str(path)) as log:
         for record in log.records():
             try:
-                root = etree.fromstring(record.xml().encode("utf-8"))
+                root = etree.fromstring(record.xml().encode("utf-8"), parser)
             except etree.XMLSyntaxError:
                 continue
 
@@ -136,9 +146,22 @@ def parse_evtx_file(path: str | os.PathLike) -> Iterator[UnifiedEvent]:
             eid_el = sys_el.find("e:EventID", ns)
             if eid_el is None or eid_el.text is None:
                 continue
-            event_id = int(eid_el.text)
-            if event_id not in SYSMON_TYPE_MAP:
-                continue  # skip non-behavioral sysmon events
+            try:
+                event_id = int(eid_el.text)
+            except ValueError:
+                continue
+            provider = _attr(sys_el.find("e:Provider", ns), "Name") or ""
+
+            if "sysmon" in provider.lower():
+                if event_id not in SYSMON_TYPE_MAP:
+                    continue  # skip non-behavioral sysmon events
+                mapper = event_from_fields
+            elif provider == "Microsoft-Windows-Security-Auditing":
+                if event_id not in winevent.WINEVENT_TYPE_MAP:
+                    continue
+                mapper = winevent.event_from_fields
+            else:
+                continue
 
             system = {
                 "Computer": _text(sys_el.find("e:Computer", ns)),
@@ -149,7 +172,7 @@ def parse_evtx_file(path: str | os.PathLike) -> Iterator[UnifiedEvent]:
                 for d in root.findall(".//e:EventData/e:Data", ns)
                 if d.get("Name")
             }
-            yield event_from_fields(event_id, data, system)
+            yield mapper(event_id, data, system)
 
 
 def _text(el) -> str | None:

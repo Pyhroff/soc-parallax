@@ -4,10 +4,10 @@ services:
     container_name: parallax-postgres
     environment:
       POSTGRES_USER: parallax
-      POSTGRES_PASSWORD: parallax
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: parallax
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
@@ -21,11 +21,11 @@ services:
     image: neo4j:5-community
     container_name: parallax-neo4j
     environment:
-      NEO4J_AUTH: neo4j/parallaxgraph
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
       NEO4J_PLUGINS: '["apoc"]'
     ports:
-      - "7474:7474"   # browser
-      - "7687:7687"   # bolt
+      - "127.0.0.1:7474:7474"   # browser (local only)
+      - "127.0.0.1:7687:7687"   # bolt (local only)
     volumes:
       - neo4jdata:/data
     healthcheck:
@@ -38,7 +38,7 @@ services:
     image: ollama/ollama:latest
     container_name: parallax-ollama
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollamadata:/root/.ollama
     # After first start, pull a model:  docker exec parallax-ollama ollama pull llama3
@@ -47,14 +47,19 @@ services:
     build: ./backend
     container_name: parallax-backend
     environment:
-      PG_DSN: "postgresql://parallax:parallax@postgres:5432/parallax"
+      PG_DSN: "postgresql://parallax:${POSTGRES_PASSWORD}@postgres:5432/parallax"
       NEO4J_URI: "bolt://neo4j:7687"
       NEO4J_USER: "neo4j"
-      NEO4J_PASSWORD: "parallaxgraph"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
       OLLAMA_URL: "http://ollama:11434"
       OLLAMA_MODEL: "llama3"
+      API_KEY_ADMIN: "${API_KEY_ADMIN:?set API_KEY_ADMIN in .env}"
+      API_KEY_INGEST: "${API_KEY_INGEST:?set API_KEY_INGEST in .env}"
+      API_KEY_ANALYST: "${API_KEY_ANALYST:?set API_KEY_ANALYST in .env}"
+      CORS_ORIGINS: "http://localhost:3000"
+      INGEST_ROOT: "/data"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,16 +68,17 @@ services:
       ollama:
         condition: service_started
     volumes:
-      - ./backend:/app
-      - ./data:/data
+      - ./data:/data:ro      # code is baked into the image; data is read-only
 
   frontend:
     build: ./frontend
     container_name: parallax-frontend
     environment:
-      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+      # server-side only (no NEXT_PUBLIC_): the key never reaches the browser
+      BACKEND_URL: "http://backend:8000"
+      BACKEND_API_KEY: "${API_KEY_ANALYST}"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
 

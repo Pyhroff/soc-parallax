@@ -8,6 +8,8 @@ techniques:
   T1059.003: { tactic: Execution,            name: "Windows Command Shell" }
   T1027:     { tactic: "Defense Evasion",    name: "Obfuscated Files or Information" }
   T1036:     { tactic: "Defense Evasion",    name: "Masquerading" }
+  T1036.003: { tactic: "Defense Evasion",    name: "Masquerading: Rename System Utilities" }
+  T1036.005: { tactic: "Defense Evasion",    name: "Masquerading: Match Legitimate Name or Location" }
   T1055:     { tactic: "Defense Evasion",    name: "Process Injection" }
   T1078:     { tactic: "Initial Access",     name: "Valid Accounts" }
   T1566:     { tactic: "Initial Access",     name: "Phishing" }
@@ -31,9 +33,7 @@ signal_map:
   "rule:autostart_registry":   [T1547]
   "rule:scheduled_task":       [T1053]
   "rule:remote_exec":          [T1021]
-  "rarity:process_name":       [T1059.001]
-  "rarity:parent_child":       [T1055]
-  "rarity:login_hour":         [T1078]
-  "rarity:src_ip":             [T1078]
-  "rarity:dest_ip":            [T1071]
-  "rarity:domain":             [T1071.004]
+  "rule:renamed_binary":       [T1036.003]
+  "rule:system_binary_wrong_path": [T1036.005]
+# Deliberately NOT mapped: "rarity:*" signals. A statistically unusual process is an anomaly,
+# not evidence of any specific ATT&CK technique; mapping it to one would be a guess.

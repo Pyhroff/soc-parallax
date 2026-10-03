@@ -18,8 +18,10 @@ CREATE TABLE IF NOT EXISTS events (
     dest_ip      INET,
     dest_port    INT,
     payload      JSONB NOT NULL,
-    ingested_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    ingested_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    dataset      TEXT NOT NULL DEFAULT 'observed' CHECK (dataset IN ('baseline','observed'))
 );
+ALTER TABLE events ADD COLUMN IF NOT EXISTS dataset TEXT NOT NULL DEFAULT 'observed';
 CREATE INDEX IF NOT EXISTS idx_events_entity  ON events (host, "user", "timestamp");
 CREATE INDEX IF NOT EXISTS idx_events_type    ON events (event_type, "timestamp");
 CREATE INDEX IF NOT EXISTS idx_events_payload ON events USING GIN (payload);

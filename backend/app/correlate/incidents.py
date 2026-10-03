@@ -1,8 +1,9 @@
 """Correlate detections into incidents.
 
 Detections for the same entity within a time window are grouped into one
-incident. The incident's MITRE techniques are ordered by ATT&CK kill-chain
-tactic so the PRECEDES chain and narrative read in attack order.
+incident. The incident's MITRE techniques are ordered by
+first-observed time. ATT&CK tactic order is only a tie-breaker: the PRECEDES edges
+record what was observed to happen first, not what a textbook kill chain says should.
 """
 from __future__ import annotations
 
@@ -73,16 +74,23 @@ def correlate() -> dict:
     return {"unassigned_detections": len(rows), "incidents_created": created}
 
 
+def order_techniques(observations: list[tuple]) -> list[MitreRef]:
+    """observations: [(timestamp, [MitreRef, ...]), ...]. Techniques ordered by the
+    first time they were observed; tactic rank breaks ties within the same instant."""
+    first: dict[str, tuple] = {}
+    for ts, refs in observations:
+        for ref in refs:
+            if ref.technique_id not in first or ts < first[ref.technique_id][0]:
+                first[ref.technique_id] = (ts, ref)
+    return [ref for _ts, ref in sorted(
+        first.values(), key=lambda p: (p[0], TACTIC_RANK.get(p[1].tactic, 99), p[1].technique_id))]
+
+
 def _create_incident(bucket: list[dict]) -> int:
     dets = [_to_detection(r) for r in bucket]
     top = max(dets, key=lambda d: d.score)
 
-    # merge + order techniques by kill chain
-    refs: dict[str, MitreRef] = {}
-    for d in dets:
-        for ref in d.mitre:
-            refs[ref.technique_id] = ref
-    ordered = sorted(refs.values(), key=lambda r: TACTIC_RANK.get(r.tactic, 99))
+    ordered = order_techniques([(r["timestamp"], d.mitre) for r, d in zip(bucket, dets)])
     technique_order = [r.technique_id for r in ordered]
 
     severity = max((d.severity for d in dets), key=lambda s: SEV_RANK[s])

@@ -1,7 +1,11 @@
 """Baseline, detection, incident, investigation, and graph endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, HTTPException, Query
+import logging
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+
+from app.api.auth import require
 
 from app.baseline.engine import build_baselines, get_baseline
 from app.correlate.incidents import correlate
@@ -10,11 +14,12 @@ from app.detect.scorer import run_detection_over_events
 from app.graph import queries as gq
 from app.investigate.graph import run_investigation
 
-router = APIRouter(tags=["analytics"])
+log = logging.getLogger("parallax.api")
+router = APIRouter(tags=["analytics"], dependencies=[Depends(require("analyst"))])
 
 
 # ---- baselines ----
-@router.post("/baseline/build")
+@router.post("/baseline/build", dependencies=[Depends(require("admin"))])
 def baseline_build(days: int | None = Body(None, embed=True)) -> dict:
     return build_baselines(days)
 
@@ -28,8 +33,10 @@ def baseline_get(entity_type: str, entity_id: str, feature: str) -> dict:
 
 
 # ---- detections ----
-@router.post("/detect/run")
+@router.post("/detect/run", dependencies=[Depends(require("ingest"))])
 def detect_run(min_severity: str = Body("low", embed=True)) -> dict:
+    if min_severity not in ("low", "medium", "high", "critical"):
+        raise HTTPException(400, "invalid severity")
     return run_detection_over_events(min_severity)
 
 
@@ -46,7 +53,7 @@ def detections_list(severity: str | None = None, limit: int = Query(100, le=1000
 
 
 # ---- incidents ----
-@router.post("/correlate/run")
+@router.post("/correlate/run", dependencies=[Depends(require("ingest"))])
 def correlate_run() -> dict:
     return correlate()
 
@@ -86,7 +93,7 @@ def incident_detail(incident_id: str) -> dict:
 # ---- investigation ----
 @router.post("/investigate")
 def investigate(entity_type: str = Body(...), entity_id: str = Body(...),
-                window_hours: int = Body(24)) -> dict:
+                window_hours: int = Body(24, ge=1, le=720)) -> dict:
     if entity_type not in ("user", "host"):
         raise HTTPException(400, "entity_type must be 'user' or 'host'")
     return run_investigation(entity_type, entity_id, window_hours)

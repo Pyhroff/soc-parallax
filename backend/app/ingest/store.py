@@ -11,20 +11,21 @@ from app.schemas.event import UnifiedEvent
 _INSERT = """
 INSERT INTO events
     (event_id, "timestamp", source, event_type, host, "user",
-     process_name, cmdline, dest_ip, dest_port, payload)
+     process_name, cmdline, dest_ip, dest_port, payload, dataset)
 VALUES
     (%(event_id)s, %(timestamp)s, %(source)s, %(event_type)s, %(host)s, %(user)s,
-     %(process_name)s, %(cmdline)s, %(dest_ip)s, %(dest_port)s, %(payload)s)
+     %(process_name)s, %(cmdline)s, %(dest_ip)s, %(dest_port)s, %(payload)s, %(dataset)s)
 ON CONFLICT (event_id) DO NOTHING
 """
 
 
-def store_events(events: Iterable[UnifiedEvent]) -> int:
+def store_events(events: Iterable[UnifiedEvent], dataset: str = "observed") -> int:
     """Bulk insert. Returns count inserted/attempted."""
     rows = []
     for ev in events:
         cols = ev.flat_columns()
         cols["payload"] = pg.as_jsonb(ev.model_dump(mode="json"))
+        cols["dataset"] = dataset
         # dest_ip may be a bare hostname in some logs; keep INET clean
         if cols["dest_ip"] and not _looks_like_ip(cols["dest_ip"]):
             cols["dest_ip"] = None
@@ -40,7 +41,7 @@ def store_events(events: Iterable[UnifiedEvent]) -> int:
     return len(rows)
 
 
-def ingest_file(path: str) -> int:
+def ingest_file(path: str, dataset: str = "observed") -> int:
     """Detect file type by extension and ingest. Returns events stored."""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".evtx":
@@ -51,7 +52,7 @@ def ingest_file(path: str) -> int:
         events = generic.parse_csv_file(path)
     else:
         raise ValueError(f"Unsupported file type: {ext}")
-    return store_events(events)
+    return store_events(events, dataset)
 
 
 def _looks_like_ip(value: str) -> bool:

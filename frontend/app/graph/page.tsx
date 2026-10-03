@@ -60,8 +60,7 @@ function dedupe(nodes: GNode[]): GNode[] {
 }
 
 async function api_blast(entity: string) {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const res = await fetch(`${base}/graph/blast-radius?entity=${encodeURIComponent(entity)}`, { cache: "no-store" });
+  const res = await fetch(`/api/proxy/graph/blast-radius?entity=${encodeURIComponent(entity)}`, { cache: "no-store" });
   if (!res.ok) throw new Error("blast radius failed");
   return res.json() as Promise<{ host: string; external_ips: string[] }[]>;
 }
