@@ -44,13 +44,13 @@ they are shown.
 
 | Module | Status | What it does |
 |--------|--------|--------------|
-| Ingest pipeline | ✅ | Sysmon/EVTX, Windows Event, JSON/ECS, CSV → unified event schema |
-| Behavioral baselines | ✅ | Per-user/host histograms; smoothed rarity, ignored until 50 observations |
-| Detection + MITRE | ✅ | Attributable signals, YAML ATT&CK rulebook |
-| Narrative intelligence | ✅ | Local LLM (Ollama) narratives with a grounding guard |
-| Organizational memory graph | ✅ | Neo4j entities/edges, per-host process nodes; host exposure (not attribution), shared-technique clustering |
-| Investigation workflow | ✅ | Fixed (non-agentic) LangGraph pipeline: collect→baseline→mitre→correlate→narrate |
-| SOC command center | ✅ | Next.js dark UI: Overview, Incidents, Graph, Investigations, Predictions |
+| Ingest pipeline |  | Sysmon/EVTX, Windows Event, JSON/ECS, CSV → unified event schema |
+| Behavioral baselines |  | Per-user/host histograms; smoothed rarity, ignored until 50 observations |
+| Detection + MITRE |  | Attributable signals, YAML ATT&CK rulebook |
+| Narrative intelligence |  | Local LLM (Ollama) narratives with a grounding guard |
+| Organizational memory graph |  | Neo4j entities/edges, per-host process nodes; host exposure (not attribution), shared-technique clustering |
+| Investigation workflow |  | Fixed (non-agentic) LangGraph pipeline: collect→baseline→mitre→correlate→narrate |
+| SOC command center |  | Next.js dark UI: Overview, Incidents, Graph, Investigations, Predictions |
 | Threat evolution predictor | ◑ | Counts of which technique was observed after which (not a predictive model) |
 
 ### Roadmap (designed for, not yet built)
