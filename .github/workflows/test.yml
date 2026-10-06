@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["master", "main"]
 
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend (pytest + ruff)
@@ -38,9 +41,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@1e60f620b9541dca9eab7e1d0e2c0c3d2e1a1a0 # v6.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
         with:
           node-version: "20"
           cache: npm
