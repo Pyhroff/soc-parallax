@@ -37,8 +37,9 @@ they are shown.
 
 ## Demo
 
-
 *(No recording yet; see the Quickstart to run it locally.)*
+
+The published evaluation is deliberately a detection-quality study, not a production-accuracy claim. The attack corpus contains lab telemetry, 16.5% of files currently parse to zero events, and the benign set is synthetic. See [`docs/EVALUATION.md`](docs/EVALUATION.md) before interpreting the headline numbers.
 
 ## What's built (the vertical slice)
 
@@ -128,10 +129,10 @@ data/       sample datasets (provenance in data/README.md)
 
 ## Design decisions worth defending
 
-- **Rule-based MITRE mapping**, not LLM - LLMs hallucinate technique IDs.
+- **Rule-based MITRE mapping**, not LLM — the repository maintains a reviewed subset of ATT&CK mappings; it is not a copy of the live ATT&CK catalog.
 - **Attributable scoring** - `score = Σ(weight × signal)`, every point traceable.
 - **Grounding guard** - narratives may only cite IPs/techniques in the evidence.
-- **Local LLM** - SOC telemetry shouldn't leave the org; Ollama keeps it on-prem.
+- **Local LLM by default** — Ollama is the default narrative backend, so telemetry can stay on-prem; deployment should still verify that `OLLAMA_URL` points only to an approved endpoint.
 - **Deterministic workflow** - a fixed LangGraph pipeline, not an agent, so output is reproducible.
 - **Restraint over recall** - rarity alone is capped at medium; high needs a rule.
 - **Secure by default** - API keys with roles (fail closed), path-confined ingest, no default secrets, non-root containers.
