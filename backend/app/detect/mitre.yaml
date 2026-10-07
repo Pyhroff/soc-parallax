@@ -1,8 +1,12 @@
 # Signal -> MITRE ATT&CK mapping.
 # Rule-based ON PURPOSE: LLMs hallucinate technique IDs. This file is the
-# single source of truth and is unit-tested. Versioned, reviewable, defensible.
+# single source of truth and is unit-tested. It is a project-maintained subset of ATT&CK,
+# not a copy of the live catalog; review identifiers and tactic metadata against current
+# MITRE releases before operational use.
 
-# Catalog of techniques referenced below (id -> tactic, name)
+# Catalog of techniques referenced below (id -> project tactic label, name).
+# Some ATT&CK techniques span multiple tactics; this compact catalog stores the tactic
+# used by this project's rulebook rather than claiming full ATT&CK metadata.
 techniques:
   T1059.001: { tactic: Execution,            name: "PowerShell" }
   T1059.003: { tactic: Execution,            name: "Windows Command Shell" }
