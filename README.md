@@ -8,7 +8,9 @@ MITRE ATT&CK, correlates them into incidents in a memory graph, and explains
 > Not a SIEM. Not a log viewer. SOC PARALLAX answers *what is happening*,
 > *what happened before*, and *what is likely to happen next* - and shows its work.
 
-[![tests](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml/badge.svg)](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml) ![stack](https://img.shields.io/badge/stack-FastAPI%20%7C%20Neo4j%20%7C%20Next.js-blue)
+[![tests](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml/badge.svg)](https://github.com/Pyhroff/soc-parallax/actions/workflows/test.yml)
+![stack](https://img.shields.io/badge/stack-FastAPI%20%7C%20Neo4j%20%7C%20Next.js-blue)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 > **Measured results** ([method and caveats](docs/EVALUATION.md)): on 278 real EVTX-ATTACK-SAMPLES files, rules fire on 36%
 > and reach medium severity or higher on 29.5% (27.3% on a held-out half used only for reporting). On held-out benign
@@ -35,24 +37,20 @@ Every score still traces to named, weighted signals (`score = Σ(weight × signa
 versioned YAML rulebook rather than a model, and generated narratives are checked against the evidence before
 they are shown.
 
-## Demo
-
-*(No recording yet; see the Quickstart to run it locally.)*
-
 The published evaluation is deliberately a detection-quality study, not a production-accuracy claim. The attack corpus contains lab telemetry, 16.5% of files currently parse to zero events, and the benign set is synthetic. See [`docs/EVALUATION.md`](docs/EVALUATION.md) before interpreting the headline numbers.
 
 ## What's built (the vertical slice)
 
 | Module | Status | What it does |
 |--------|--------|--------------|
-| Ingest pipeline |  | Sysmon/EVTX, Windows Event, JSON/ECS, CSV → unified event schema |
-| Behavioral baselines |  | Per-user/host histograms; smoothed rarity, ignored until 50 observations |
-| Detection + MITRE |  | Attributable signals, YAML ATT&CK rulebook |
-| Narrative intelligence |  | Local LLM (Ollama) narratives with a grounding guard |
-| Organizational memory graph |  | Neo4j entities/edges, per-host process nodes; host exposure (not attribution), shared-technique clustering |
-| Investigation workflow |  | Fixed (non-agentic) LangGraph pipeline: collect→baseline→mitre→correlate→narrate |
-| SOC command center |  | Next.js dark UI: Overview, Incidents, Graph, Investigations, Predictions |
-| Threat evolution predictor | ◑ | Counts of which technique was observed after which (not a predictive model) |
+| Ingest pipeline | Built | Sysmon/EVTX, Windows Event, JSON/ECS, CSV → unified event schema |
+| Behavioral baselines | Built | Per-user/host histograms; smoothed rarity, ignored until 50 observations |
+| Detection + MITRE | Built | Attributable signals, YAML ATT&CK rulebook |
+| Narrative intelligence | Built | Local LLM (Ollama) narratives with a grounding guard |
+| Organizational memory graph | Built | Neo4j entities/edges, per-host process nodes; host exposure (not attribution), shared-technique clustering |
+| Investigation workflow | Built | Fixed (non-agentic) LangGraph pipeline: collect→baseline→mitre→correlate→narrate |
+| SOC command center | Built | Next.js dark UI: Overview, Incidents, Graph, Investigations, Predictions |
+| Threat evolution predictor | Partial | Counts of which technique was observed after which (not a predictive model) |
 
 ### Roadmap (designed for, not yet built)
 Attack Genome similarity engine · Kafka streaming ingest · OpenSearch full-text ·
@@ -138,3 +136,14 @@ data/       sample datasets (provenance in data/README.md)
 - **Secure by default** - API keys with roles (fail closed), path-confined ingest, no default secrets, non-root containers.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §12 for the full list.
+
+## Limitations
+
+- Detection quality is measured on lab telemetry (EVTX-ATTACK-SAMPLES) and a synthetic benign set; 16.5% of attack files still parse to zero events. Numbers describe this corpus, not production accuracy.
+- Baselines need at least 50 observations per entity before rarity counts, so new users and hosts produce no anomaly signal by design.
+- Narratives come from a local LLM and are checked against the evidence before display, but they are summaries for an analyst, not verdicts.
+- The threat-evolution view counts observed technique sequences; it is not a predictive model.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
