@@ -68,6 +68,26 @@ Next.js UI ──REST──> FastAPI ──> PostgreSQL (events, baselines, dete
                          └──────> Ollama  (grounded narratives)
 ```
 
+### Data flow
+
+```mermaid
+flowchart LR
+    I["Ingest<br/>sysmon / winevent / generic parsers"] --> PG[("PostgreSQL<br/>events")]
+    PG --> B["Baseline engine<br/>per-entity histograms<br/>(baseline dataset only)"]
+    PG --> D["Detection scorer<br/>contextual rules + rarity signals"]
+    B --> D
+    D --> M["MITRE mapping<br/>(mitre.yaml)"]
+    M --> C["Correlate<br/>incidents"]
+    C --> N["Narrate<br/>Ollama + grounding guard"]
+    C --> G[("Neo4j<br/>memory graph")]
+    N --> UI["FastAPI --> Next.js UI"]
+    G --> UI
+    subgraph INV["Investigation (LangGraph, fixed order)"]
+        direction LR
+        i1["collect"] --> i2["baseline_compare"] --> i3["mitre_map"] --> i4["correlate"] --> i5["narrate"]
+    end
+```
+
 Full design, schemas, and the detection math: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Quickstart
@@ -112,6 +132,12 @@ pytest            # parsers, scorer (TP + FP), grounding guard, rulebook
 ```
 
 ### Reproduce the evaluation
+
+### Detection-evaluation demo
+
+![terminal demo: scripts/metrics.py on the bundled synthetic data](docs/assets/demo.svg)
+
+_Real output of `scripts/metrics.py` on the bundled **synthetic** demo data (`scripts/generate_demo_data.py`, deterministic). Not a quality claim; see [`docs/EVALUATION.md`](docs/EVALUATION.md) for the real-corpus numbers._
 
 See [`docs/EVALUATION.md`](docs/EVALUATION.md) for the method, results and limits.
 
