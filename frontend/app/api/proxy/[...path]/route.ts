@@ -34,9 +34,12 @@ async function forward(req: NextRequest, path: string[], allowed: RegExp[]) {
   }
 }
 
-export async function GET(req: NextRequest, ctx: { params: { path: string[] } }) {
-  return forward(req, ctx.params.path, GET_ALLOWED);
+// Next.js 15+ passes route params as a Promise.
+type Ctx = { params: Promise<{ path: string[] }> };
+
+export async function GET(req: NextRequest, ctx: Ctx) {
+  return forward(req, (await ctx.params).path, GET_ALLOWED);
 }
-export async function POST(req: NextRequest, ctx: { params: { path: string[] } }) {
-  return forward(req, ctx.params.path, POST_ALLOWED);
+export async function POST(req: NextRequest, ctx: Ctx) {
+  return forward(req, (await ctx.params).path, POST_ALLOWED);
 }
